@@ -177,7 +177,7 @@ async function runQuery(req: express.Request, res: express.Response) {
   }
 }
 
-function extractTopicFromQuestion(question: string): string {
+export function extractTopicFromQuestion(question: string): string {
   let topic = question
     .toLowerCase()
     .replace(/^(what|who|where|when|why|how|is|are|was|were|do|does|did|can|could|would|should)\s+/gi, '')
@@ -191,7 +191,7 @@ function extractTopicFromQuestion(question: string): string {
   return topic || question;
 }
 
-function extractTopicsFromMissingInfo(missingInfo: string[], fallbackQuestion: string): string[] {
+export function extractTopicsFromMissingInfo(missingInfo: string[], fallbackQuestion: string): string[] {
   if (!missingInfo.length) return [extractTopicFromQuestion(fallbackQuestion)];
   
   const topics = missingInfo.map(m => {
@@ -207,7 +207,7 @@ function extractTopicsFromMissingInfo(missingInfo: string[], fallbackQuestion: s
   return [...new Set(topics)].slice(0, 3);
 }
 
-function processCitations(finalCitations: any[]) {
+export function processCitations(finalCitations: any[]) {
   const UUID_RE =
     /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 

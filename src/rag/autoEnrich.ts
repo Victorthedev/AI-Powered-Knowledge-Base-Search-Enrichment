@@ -8,7 +8,7 @@ export type ExternalSnippet = {
   text: string;
 };
 
-function isTrusted(urlStr: string): boolean {
+export function isTrusted(urlStr: string): boolean {
   try {
     const u = new URL(urlStr);
     const allowed = env.TRUSTED_DOMAINS.split(",").map(s => s.trim()).filter(Boolean);

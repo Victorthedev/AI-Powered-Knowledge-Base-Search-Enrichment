@@ -205,6 +205,9 @@ Expected response:
 { "feedback_id": "uuid", "ok": true }
 ```
 
+**7) Unit tests**
+Run `npm test`
+
 ## Notes on PDFs, DOCX, and Images
 - Text PDFs and DOCX are extracted directly
 - Images are OCR'd using tesseract
