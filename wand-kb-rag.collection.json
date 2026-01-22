@@ -1,0 +1,259 @@
+{
+    "info": {
+      "_postman_id": "3c8f0d57-0cdd-49c5-9a1e-7b8e2d3c62b1",
+      "name": "Wand KB RAG (Local)",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+      {
+        "name": "Health",
+        "request": {
+          "method": "GET",
+          "header": [],
+          "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Upload Document (PDF/DOCX/TXT/Image)",
+        "request": {
+          "method": "POST",
+          "header": [],
+          "body": {
+            "mode": "formdata",
+            "formdata": [
+              { "key": "file", "type": "file", "src": "" }
+            ]
+          },
+          "url": { "raw": "{{baseUrl}}/documents", "host": ["{{baseUrl}}"], "path": ["documents"] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const j = pm.response.json();",
+                "if (j.documentId) pm.environment.set('documentId', j.documentId);",
+                "if (j.jobId) pm.environment.set('jobId', j.jobId);"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "List Documents",
+        "request": {
+          "method": "GET",
+          "header": [],
+          "url": { "raw": "{{baseUrl}}/documents", "host": ["{{baseUrl}}"], "path": ["documents"] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const arr = pm.response.json();",
+                "if (Array.isArray(arr) && arr.length > 0 && !pm.environment.get('documentId')) {",
+                "  pm.environment.set('documentId', arr[0].id);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Get Document by ID",
+        "request": {
+          "method": "GET",
+          "header": [],
+          "url": {
+            "raw": "{{baseUrl}}/documents/{{documentId}}",
+            "host": ["{{baseUrl}}"],
+            "path": ["documents", "{{documentId}}"]
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Ingestion Status (Poll)",
+        "request": {
+          "method": "GET",
+          "header": [],
+          "url": {
+            "raw": "{{baseUrl}}/ingestion/{{jobId}}",
+            "host": ["{{baseUrl}}"],
+            "path": ["ingestion", "{{jobId}}"]
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const j = pm.response.json();",
+                "pm.test('Has status/progress', function () {",
+                "  pm.expect(j).to.have.property('status');",
+                "  pm.expect(j).to.have.property('progress');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Query (All Documents)",
+        "request": {
+          "method": "POST",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"question\": \"What does the document say about refunds?\"\n}"
+          },
+          "url": { "raw": "{{baseUrl}}/query", "host": ["{{baseUrl}}"], "path": ["query"] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const j = pm.response.json();",
+                "if (j.query_id) pm.environment.set('queryId', j.query_id);",
+                "pm.test('Has answer + confidence', function () {",
+                "  pm.expect(j).to.have.property('answer');",
+                "  pm.expect(j).to.have.property('confidence');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Query (Specific Document via body.documentIds)",
+        "request": {
+          "method": "POST",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"question\": \"Summarize this document.\",\n  \"documentIds\": [\"{{documentId}}\"]\n}"
+          },
+          "url": { "raw": "{{baseUrl}}/query", "host": ["{{baseUrl}}"], "path": ["query"] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const j = pm.response.json();",
+                "if (j.query_id) pm.environment.set('queryId', j.query_id);"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Query (Specific Document via path)",
+        "request": {
+          "method": "POST",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"question\": \"What are the key obligations in this document?\"\n}"
+          },
+          "url": {
+            "raw": "{{baseUrl}}/query/documents/{{documentId}}",
+            "host": ["{{baseUrl}}"],
+            "path": ["query", "documents", "{{documentId}}"]
+          }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const j = pm.response.json();",
+                "if (j.query_id) pm.environment.set('queryId', j.query_id);"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Submit Feedback (Rating)",
+        "request": {
+          "method": "POST",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"query_id\": \"{{queryId}}\",\n  \"rating\": 4,\n  \"is_helpful\": true,\n  \"comment\": \"Good answer, but add more detail on exceptions.\"\n}"
+          },
+          "url": { "raw": "{{baseUrl}}/feedback", "host": ["{{baseUrl}}"], "path": ["feedback"] }
+        },
+        "event": [
+          {
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "const j = pm.response.json();",
+                "pm.test('Has feedback_id', function () {",
+                "  pm.expect(j).to.have.property('feedback_id');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          }
+        ]
+      }
+    ]
+  }
+  

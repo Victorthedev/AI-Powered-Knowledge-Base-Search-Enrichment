@@ -1,0 +1,70 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wandkb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://postgres:postgres@db:5432/wandkb
+      REDIS_URL: redis://redis:6379
+      STORAGE_DIR: /app/storage
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+      TRUSTED_DOMAINS: ${TRUSTED_DOMAINS:-en.wikipedia.org}
+      AUTO_ENRICH_MAX_SNIPPETS: ${AUTO_ENRICH_MAX_SNIPPETS:-3}
+      SCANNED_PDF_OCR_ENABLED: ${SCANNED_PDF_OCR_ENABLED:-true}
+      OCR_PDF_DPI: ${OCR_PDF_DPI:-200}
+      OCR_PDF_MAX_PAGES: ${OCR_PDF_MAX_PAGES:-15}
+      OCR_MIN_TEXT_CHARS_BEFORE_OCR: ${OCR_MIN_TEXT_CHARS_BEFORE_OCR:-400}
+    volumes:
+      - uploads:/app/storage
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "3000:3000"
+    command: ["npm", "run", "start:api"]
+
+  worker:
+    build: .
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@db:5432/wandkb
+      REDIS_URL: redis://redis:6379
+      STORAGE_DIR: /app/storage
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+      TRUSTED_DOMAINS: ${TRUSTED_DOMAINS:-en.wikipedia.org}
+      AUTO_ENRICH_MAX_SNIPPETS: ${AUTO_ENRICH_MAX_SNIPPETS:-3}
+      SCANNED_PDF_OCR_ENABLED: ${SCANNED_PDF_OCR_ENABLED:-true}
+      OCR_PDF_DPI: ${OCR_PDF_DPI:-200}
+      OCR_PDF_MAX_PAGES: ${OCR_PDF_MAX_PAGES:-15}
+      OCR_MIN_TEXT_CHARS_BEFORE_OCR: ${OCR_MIN_TEXT_CHARS_BEFORE_OCR:-400}
+    volumes:
+      - uploads:/app/storage
+    depends_on:
+      - db
+      - redis
+    command: ["npm", "run", "start:worker"]
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,134 @@
+import express from "express";
+import { randomUUID } from "crypto";
+import { QueryRequestSchema, QueryResponseSchema } from "../../types.js";
+import { retrieveTopK } from "../../rag/retrieve.js";
+import { generateAnswer } from "../../rag/answer.js";
+import { assessCompleteness } from "../../rag/completeness.js";
+import { suggestEnrichment } from "../../rag/enrich.js";
+import { autoEnrich } from "../../rag/autoEnrich.js";
+import { pool } from "../../db/index.js";
+
+export const queryRouter = express.Router();
+
+async function runQuery(req: express.Request, res: express.Response) {
+  try {
+    const parsed = QueryRequestSchema.parse(req.body);
+    const topK = parsed.topK ?? 6;
+
+    const chunks = await retrieveTopK(parsed.question, topK, parsed.documentIds);
+
+    if (chunks.length === 0) {
+      const queryId = randomUUID();
+      const out = QueryResponseSchema.parse({
+        query_id: queryId,
+        answer: "I cannot answer from the uploaded documents because no relevant information was retrieved.",
+        confidence: 0.05,
+        missing_info: ["No relevant documents or passages were found for this question."],
+        enrichment_suggestions: ["Upload documents that directly cover this topic, then try again."],
+        used_external: false,
+        citations: []
+      });
+
+      await pool.query(
+        `INSERT INTO qa_runs (id, question, answer, confidence, missing_info, enrichment_suggestions, citations, used_external)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
+        [
+          queryId,
+          parsed.question,
+          out.answer,
+          out.confidence,
+          out.missing_info,
+          out.enrichment_suggestions,
+          JSON.stringify(out.citations),
+          out.used_external
+        ]
+      );
+
+      return res.json(out);
+    }
+
+    const raw1 = await generateAnswer(parsed.question, chunks, []);
+    let answer1 = raw1;
+    let citations1: any[] = [];
+    try {
+      const j = JSON.parse(raw1);
+      answer1 = String(j.answer ?? raw1);
+      citations1 = Array.isArray(j.citations) ? j.citations : [];
+    } catch {}
+
+    const grade1 = await assessCompleteness(parsed.question, answer1, chunks);
+    const missing = grade1.missing_info ?? [];
+    const enrichment = suggestEnrichment(missing);
+
+    const shouldEnrich = missing.length > 0 || grade1.confidence < 0.55;
+
+    let usedExternal = false;
+    let finalAnswer = answer1;
+    let finalCitations = citations1;
+    let finalGrade = grade1;
+
+    if (shouldEnrich) {
+      const external = await autoEnrich(missing.length ? missing : [parsed.question]);
+      if (external.length > 0) {
+        usedExternal = true;
+        const raw2 = await generateAnswer(parsed.question, chunks, external);
+
+        try {
+          const j2 = JSON.parse(raw2);
+          finalAnswer = String(j2.answer ?? raw2);
+          finalCitations = Array.isArray(j2.citations) ? j2.citations : [];
+        } catch {
+          finalAnswer = raw2;
+          finalCitations = [];
+        }
+
+        finalGrade = await assessCompleteness(parsed.question, finalAnswer, chunks);
+      }
+    }
+
+    const queryId = randomUUID();
+
+    await pool.query(
+      `INSERT INTO qa_runs (id, question, answer, confidence, missing_info, enrichment_suggestions, citations, used_external)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
+      [
+        queryId,
+        parsed.question,
+        finalAnswer,
+        finalGrade.confidence,
+        finalGrade.missing_info,
+        enrichment,
+        JSON.stringify(finalCitations),
+        usedExternal
+      ]
+    );
+
+    const out = QueryResponseSchema.parse({
+      query_id: queryId,
+      answer: finalAnswer,
+      confidence: finalGrade.confidence,
+      missing_info: finalGrade.missing_info,
+      enrichment_suggestions: enrichment,
+      used_external: usedExternal,
+      citations: finalCitations.map((c: any) => ({
+        source_type: c.source_type,
+        chunk_id: c.chunk_id,
+        document_id: c.document_id,
+        url: c.url,
+        title: c.title,
+        excerpt: String(c.excerpt ?? "").slice(0, 220)
+      }))
+    });
+
+    return res.json(out);
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? "Invalid request" });
+  }
+}
+
+queryRouter.post("/", runQuery);
+
+queryRouter.post("/documents/:documentId", async (req, res) => {
+  req.body = { ...(req.body ?? {}), documentIds: [req.params.documentId] };
+  return runQuery(req, res);
+});
