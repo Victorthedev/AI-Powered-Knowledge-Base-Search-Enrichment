@@ -26,13 +26,13 @@ export const QueryRequestSchema = z.object({
 export type QueryRequest = z.infer<typeof QueryRequestSchema>;
 
 export const CitationSchema = z.object({
-  source_type: z.enum(["doc_chunk", "external"]),
-  chunk_id: z.string().uuid().optional(),
-  document_id: z.string().uuid().optional(),
-  url: z.string().url().optional(),
-  title: z.string().optional(),
-  excerpt: z.string()
-});
+    source_type: z.enum(["doc_chunk", "external"]),
+    chunk_id: z.string().uuid().nullable().optional(),
+    document_id: z.string().uuid().nullable().optional(),
+    url: z.string().url().optional(),
+    title: z.string().optional(),
+    excerpt: z.string()
+  });  
 
 export const QueryResponseSchema = z.object({
   query_id: z.string().uuid(),

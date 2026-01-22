@@ -103,22 +103,48 @@ async function runQuery(req: express.Request, res: express.Response) {
       ]
     );
 
+    const UUID_RE =
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
+  
+  function pickUuid(v: any): string | undefined {
+    if (typeof v !== "string") return undefined;
+    const m = v.match(UUID_RE);
+    return m ? m[0] : undefined;
+  }
+  
+  const citations = (finalCitations ?? [])
+    .map((c: any) => {
+      const sourceType = c?.source_type;
+      if (sourceType !== "doc_chunk" && sourceType !== "external") return null;
+  
+      const out: any = {
+        source_type: sourceType,
+        excerpt: String(c?.excerpt ?? "").slice(0, 220)
+      };
+  
+      const chunkId = pickUuid(c?.chunk_id);
+      const docId = pickUuid(c?.document_id);
+  
+      // only set if valid UUID
+      if (chunkId) out.chunk_id = chunkId;
+      if (docId) out.document_id = docId;
+  
+      if (typeof c?.url === "string" && c.url) out.url = c.url;
+      if (typeof c?.title === "string" && c.title) out.title = c.title;
+  
+      return out;
+    })
+    .filter((c: any) => c && c.source_type && c.excerpt);  
+
     const out = QueryResponseSchema.parse({
-      query_id: queryId,
-      answer: finalAnswer,
-      confidence: finalGrade.confidence,
-      missing_info: finalGrade.missing_info,
-      enrichment_suggestions: enrichment,
-      used_external: usedExternal,
-      citations: finalCitations.map((c: any) => ({
-        source_type: c.source_type,
-        chunk_id: c.chunk_id,
-        document_id: c.document_id,
-        url: c.url,
-        title: c.title,
-        excerpt: String(c.excerpt ?? "").slice(0, 220)
-      }))
-    });
+        query_id: queryId,
+        answer: finalAnswer,
+        confidence: finalGrade.confidence,
+        missing_info: finalGrade.missing_info,
+        enrichment_suggestions: enrichment,
+        used_external: usedExternal,
+        citations
+      });
 
     return res.json(out);
   } catch (e: any) {
